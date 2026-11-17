@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grading Tracker</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1f2937;--mu:#6b7280;--ac:#2f6f5e;--ac2:#e3f0ec;--bd:#e5e3dc;--bad:#c0392b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181a;--card:#1f2326;--tx:#e8eaeb;--mu:#9aa3a8;--ac:#5fb59f;--ac2:#23352f;--bd:#33393d;--bad:#ef7a6c}}
+:root[data-theme="dark"]{--bg:#15181a;--card:#1f2326;--tx:#e8eaeb;--mu:#9aa3a8;--ac:#5fb59f;--ac2:#23352f;--bd:#33393d;--bad:#ef7a6c}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:4px 0 12px}h2{font-size:16px;margin:0 0 10px}
+nav{display:flex;gap:6px;margin-bottom:12px}
+nav button{flex:1;padding:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font-weight:600}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+input,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.seg button{padding:10px 4px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:8px;font:inherit}
+.seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font-weight:600;flex:0 0 auto}
+.ghost{background:none;color:var(--bad);border:1px solid var(--bd)}
+.stu{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--bd)}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.g5 label{margin:6px 0 2px;font-size:11px}.g5 input{padding:8px 4px;text-align:center}
+.bad{border-color:var(--bad)}
+.pod{display:flex;gap:8px}.pod div{flex:1;background:var(--ac2);border-radius:10px;padding:10px;text-align:center}
+.pod b{display:block;font-size:22px}.pod small{color:var(--mu)}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;white-space:nowrap}
+th,td{padding:8px;text-align:right;border-bottom:1px solid var(--bd)}th:nth-child(-n+2),td:nth-child(-n+2){text-align:left}
+.mu{color:var(--mu);font-size:13px}
+.fi{border:1px solid var(--bd);background:var(--bg);border-radius:8px;padding:9px 10px;color:var(--mu);font-size:14px}.fb{display:inline-block;background:var(--ac);color:#fff;border-radius:8px;padding:9px 12px;font-weight:600;font-size:14px}
+.mk{display:flex;align-items:center;gap:8px;margin:10px 0}
+textarea{width:100%;height:80px;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:12px monospace}.mk>div:first-child{flex:0 0 44%}.ar{color:var(--bad);font-weight:700;font-size:13px;line-height:1.3}
+</style></head><body><main>
+<h1>📊 Grading Tracker</h1><div id="sync" class="mu" style="margin:-8px 0 8px"></div>
+<nav id="nav"></nav><div id="v"></div>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const KEY='gradetracker_v1',C=[['att','Attendance',.25],['gam','Games',.15],['mem','Memory Verse',.15],['act','Activity',.25],['rec','Recitation',.20]];
+const blank=()=>({level:'',teacher:'',curr:'',n:5,students:[],lessons:{},nid:1}),LV=['Beginner','Primary','Intermediate'];let S=blank(),ALL={},RL='',tab='setup',cur=1,DB=null,uid=null,OWN={},timer=null;
+try{const d=localStorage.getItem(KEY);if(d){const p=JSON.parse(d);if(p.all){ALL=p.all;S=Object.assign(blank(),p.S)}else S=Object.assign(S,p)}}catch(e){}
+const myLevel=()=>Object.keys(OWN).find(k=>OWN[k]===uid),ro=()=>!!(DB&&S.level&&OWN[S.level]!==uid&&(OWN[S.level]||myLevel())),stat=t=>{const e=document.getElementById('sync');if(e)e.textContent=t};
+const save=()=>{if(S.level&&!ro())ALL[S.level]=S;try{localStorage.setItem(KEY,JSON.stringify({S,all:ALL}))}catch(e){}
+ if(DB&&S.level&&!ro()){OWN[S.level]=uid;clearTimeout(timer);const obj=S,lv=obj.level;timer=setTimeout(()=>{DB.collection('levels').doc(lv).set({d:JSON.stringify(obj),owner:uid}).then(()=>stat('Synced ✓')).catch(()=>stat('Sync failed – will retry on your next change'))},700)}};
+function setLevel(v){if(!v){render();return}
+ const taken=OWN[v]&&uid&&OWN[v]!==uid;
+ if(S.level)ALL[S.level]=S;
+ if(taken||S.level){S=ALL[v]||blank();S.level=v}else S.level=v;
+ cur=1;save();render()}
+function _unusedSetLevel(v){if(!v){render();return}if(!S.level){S.level=v;save();render();return}ALL[S.level]=S;S=ALL[v]||blank();S.level=v;cur=1;save();render()}
+function certs(r,rl){const c=r.filter(x=>x.ap>10).sort((a,b)=>a.name.localeCompare(b.name));
+ return `<div class="card"><h2>🎓 Certificate of Participation · ${rl}</h2>${c.length?c.map(x=>`<div class="stu"><span>${esc(x.name)}</span><span class="mu">${Number(x.ap.toFixed(1))} attendance points</span></div>`).join(''):'<span class="mu">No student has more than 10 attendance points yet.</span>'}<div class="mu" style="margin-top:6px">Students whose total attendance points earned is more than 10.</div></div>`}
+function awards(r,D,rl){const lt=Object.values(D.lessons).filter(l=>Object.values(l.sc).some(x=>x.att!==''&&x.att!=null)).length;
+ const best=k=>{const m=Math.max(0,...r.map(x=>x[k]??0));return m>0?r.filter(x=>(x[k]??0)===m):[]};
+ const A=[['🎤','Best in Recitation',best('rec'),'rec'],['🎲','Game Champion',best('gam'),'gam'],['📖','Memory Verse Wizard',best('mem'),'mem'],['✅','Perfect Attendance',lt?r.filter(x=>x.att===100&&x.ac===lt):[],'att']];
+ return `<div class="card"><h2>🏅 Awards · ${rl}</h2>${A.map(([i,t,w,k])=>`<div class="stu"><span>${i} <b>${t}</b></span><span style="text-align:right">${w.length?w.map(x=>esc(x.name)+(k==='att'?'':' ('+x[k].toFixed(0)+'%)')).join(', '):'<span class=mu>—</span>'}</span></div>`).join('')}<div class="mu" style="margin-top:6px">Tied students share the award.</div></div>`}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const L=n=>S.lessons[n]||(S.lessons[n]={title:'',act:10,sc:{}});
+function go(t){tab=t;render()}
+function set(k,v){S[k]=v;save()}
+function addStu(){const a=document.getElementById('fn'),b=document.getElementById('ln'),f=a.value.trim(),l=b.value.trim();
+ a.classList.toggle('bad',!f);b.classList.toggle('bad',!l);
+ if(!f||!l){document.getElementById('err').textContent='Both first name and last name are required.';(f?b:a).focus();return}
+ const id=S.nid++;S.students.push({id,name:f+' '+l});save();render();openWiz(id)}
+function twoStep(b,fn,label){if(b.dataset.armed){fn();return}
+ b.dataset.armed=1;const t=b.textContent;b.textContent=label;b.style.background='var(--bad)';b.style.color='#fff';
+ setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=t;b.style.background='';b.style.color=''}},3500)}
+function delStu(id,b){twoStep(b,()=>{S.students=S.students.filter(s=>s.id!==id);Object.values(S.lessons).forEach(l=>{delete l.sc[id]});save();render()},'Tap again to remove')}
+function resetAll(b){twoStep(b,()=>{const ml=myLevel();S=blank();ALL={};cur=1;if(DB&&ml){OWN={};DB.collection('levels').doc(ml).delete().catch(()=>{})}try{localStorage.removeItem(KEY)}catch(e){}render()},'Tap again to erase all')}
+function setN(v){S.n=Math.max(1,Math.min(60,+v||1));if(cur>S.n)cur=S.n;save()}
+function setLesson(f,v){const l=L(cur);l[f]=f==='act'?Math.max(0,+v||0):v;save()}
+function setSc(id,c,el){const l=L(cur),max=c==='act'?l.act:10;let v=el.value;
+ if(v!==''){v=Math.max(0,+v);el.classList.toggle('bad',v>max)}else el.classList.remove('bad');
+ (l.sc[id]=l.sc[id]||{})[c]=v;save()}
+function calc(st,D=S){let tot=0,out={},ac=0,ap=0;
+ C.forEach(([k,,w])=>{let n=0,d=0;Object.values(D.lessons).forEach(l=>{const v=(l.sc[st.id]||{})[k];if(v!==''&&v!=null){n+=Math.min(+v,k==='act'?l.act:10);d+=k==='act'?l.act:10;if(k==='att'){ac++;ap+=Math.min(+v,10)}}});
+  const p=d?n/d*100:0;out[k]=d?p:null;tot+=p*w});
+ return{...st,...out,grade:tot,ac,ap}}
+const WS=[['att','Attendance score earned this lesson','out of 10'],['gam','Games score earned this lesson','out of 10'],['mem','Memory Verse score earned this lesson','out of 10'],['rec','Recitation score earned this lesson','out of 10'],['act','Activity score earned this lesson',''],['tot','Total activity points for this lesson','']];
+let W=null;
+function openWiz(id){W={id,i:0};loadW();drawW()}
+function loadW(){const l=L(cur),x=l.sc[W.id]||{};W.v={att:x.att??'',gam:x.gam??'',mem:x.mem??'',rec:x.rec??'',act:x.act??'',tot:l.act}}
+function closeW(){const o=document.getElementById('wiz');if(o)o.remove();W=null}
+function toast(t){const d=document.createElement('div');d.textContent=t;d.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ac);color:#fff;padding:10px 16px;border-radius:20px;z-index:60';document.body.appendChild(d);setTimeout(()=>d.remove(),2500)}
+function drawW(){let o=document.getElementById('wiz');
+ if(!o){o=document.createElement('div');o.id='wiz';o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50';document.body.appendChild(o)}
+ const s=WS[W.i],st=S.students.find(x=>x.id===W.id),last=W.i===WS.length-1;
+ o.innerHTML=`<div class="card" style="width:100%;max-width:420px;margin:0"><div class="mu">Step ${W.i+1} of ${WS.length} · <b>${esc(st.name)}</b></div>
+ ${W.i===0?`<label>Lesson</label><select onchange="cur=+this.value;loadW();drawW()">${Array.from({length:S.n},(_,i)=>`<option value="${i+1}" ${cur===i+1?'selected':''}>Lesson ${i+1}</option>`).join('')}</select>`:`<div class="mu">Lesson ${cur}</div>`}
+ <label style="font-size:16px;color:var(--tx);font-weight:600">${s[1]}${s[2]?' ('+s[2]+')':''}</label>
+ <input id="wi" type="number" inputmode="decimal" min="0" value="${W.v[s[0]]}" onkeydown="if(event.key==='Enter')nextW()">
+ <div id="we" style="color:var(--bad);font-size:13px;min-height:18px;margin-top:6px"></div>
+ <div class="row" style="margin-top:8px"><button class="btn ghost" style="color:var(--tx)" onclick="W.i?(W.i--,drawW()):closeW()">${W.i?'Back':'Cancel'}</button><button class="btn" onclick="nextW()">${last?'Save':'Next'}</button></div></div>`;
+ document.getElementById('wi').focus()}
+function nextW(){const k=WS[W.i][0],raw=document.getElementById('wi').value.trim(),n=+raw,e=document.getElementById('we');
+ if(raw===''||isNaN(n)||n<0){e.textContent='Please enter a number (0 or more).';return}
+ if(k!=='act'&&k!=='tot'&&n>10){e.textContent='Maximum is 10.';return}
+ if(k==='tot'&&n<=0){e.textContent='Total must be greater than 0.';return}
+ if(k==='tot'&&+W.v.act>n){e.textContent='Activity score ('+W.v.act+') is higher than this total.';return}
+ W.v[k]=n;
+ if(W.i<WS.length-1){W.i++;drawW();return}
+ const l=L(cur),v=W.v;l.act=v.tot;l.sc[W.id]={att:v.att,gam:v.gam,mem:v.mem,rec:v.rec,act:v.act};save();
+ const nm=S.students.find(x=>x.id===W.id).name;closeW();toast('Saved scores for '+nm)}
+async function dlPdf(){const m=document.getElementById('pmsg');m.textContent='';
+try{const dl=window.claude&&await window.claude.use('downloads');if(!dl||!window.jspdf){m.textContent='PDF download is not available in this view.';return}
+ const doc=new window.jspdf.jsPDF({unit:'pt',format:'a4'}),all={...ALL};if(S.level)all[S.level]=S;
+ const lv=LV.filter(l=>all[l]&&all[l].students.length);if(!lv.length){m.textContent='Add students and scores first.';return}
+ let y=60;const M=40,X=[40,65,260,310,360,415,470,520],f=n=>n==null?'-':n.toFixed(1),
+ T=(t,x,sz=10,b=0)=>{doc.setFontSize(sz);doc.setFont('helvetica',b?'bold':'normal');doc.text(String(t),x,y)},
+ P=(t,sz=10,b=0)=>{doc.setFontSize(sz);doc.setFont('helvetica',b?'bold':'normal');doc.splitTextToSize(String(t),515).forEach(s=>{if(y>790){doc.addPage();y=50}doc.text(s,M,y);y+=sz+5})},
+ row=(a,b)=>{if(y>800){doc.addPage();y=50}a.forEach((t,i)=>T(t,X[i],9,b));y+=15};
+ const data=lv.map(l=>{const D=all[l],r=D.students.map(s=>calc(s,D)).sort((a,b)=>b.grade-a.grade);let rk=0,pv=null;r.forEach((x,i)=>{if(x.grade!==pv){rk=i+1;pv=x.grade}x.rank=rk});
+  const avg=r.reduce((a,x)=>a+x.grade,0)/r.length,lt=Object.values(D.lessons).filter(le=>Object.values(le.sc).some(x=>x.att!==''&&x.att!=null)).length;return{l,D,r,avg,lt}});
+ P('Grading Report',22,1);P('Generated '+new Date().toLocaleDateString(),10);y+=10;P('Summary per level',14,1);y+=2;
+ data.forEach(d=>{P(d.l+'  |  Teacher: '+(d.D.teacher||'-')+'  |  '+(d.D.curr||'-'),11,1);P(d.r.length+' students, '+d.lt+' lessons recorded, class average '+f(d.avg)+'%. Top student: '+d.r[0].name+' ('+f(d.r[0].grade)+'%)',10);y+=6});
+ data.forEach(d=>{doc.addPage();y=60;
+  P(d.l+' Level',20,1);P('Teacher: '+(d.D.teacher||'-'),11);P('Curriculum: '+(d.D.curr||'-'),11);P('Lessons recorded: '+d.lt+' of '+d.D.n+'  |  Students: '+d.r.length+'  |  Class average: '+f(d.avg)+'%',11);y+=8;
+  P('Top 3 Students',14,1);d.r.slice(0,3).forEach(x=>P('#'+x.rank+'  '+x.name+' - '+f(x.grade)+'%',11));y+=8;
+  P('Awards',14,1);const best=k=>{const mx=Math.max(0,...d.r.map(x=>x[k]??0));return mx>0?d.r.filter(x=>(x[k]??0)===mx):[]};
+  [['Best in Recitation','rec'],['Game Champion','gam'],['Memory Verse Wizard','mem']].forEach(([t,k])=>{const w=best(k);P(t+': '+(w.length?w.map(x=>x.name+' ('+x[k].toFixed(0)+'%)').join(', '):'-'),10)});
+  const pa=d.lt?d.r.filter(x=>x.att===100&&x.ac===d.lt):[];P('Perfect Attendance: '+(pa.length?pa.map(x=>x.name).join(', '):'-'),10);y+=8;
+  P('Certificate of Participation (more than 10 attendance points)',14,1);const c=d.r.filter(x=>x.ap>10).sort((a,b)=>a.name.localeCompare(b.name));P(c.length?c.map(x=>x.name+' ('+Number(x.ap.toFixed(1))+' pts)').join(', '):'None yet',10);y+=8;
+  P('All Grades',14,1);row(['#','Student','Att.','Games','Mem.','Activity','Recit.','Grade'],1);
+  d.r.forEach(x=>row([x.rank,x.name.slice(0,32),f(x.att),f(x.gam),f(x.mem),f(x.act),f(x.rec),f(x.grade)]));y+=6;
+  P('Category scores are percentages. Grade weights: Attendance 25%, Games 15%, Memory Verse 15%, Activity 25%, Recitation 20%.',8)});
+ await dl.save({filename:'grading-report.pdf',data:doc.output('blob')})
+}catch(e){if(!(e&&e.code==='declined'))m.textContent='Could not create the PDF.'}}
+function shotView(){const rl=RL||S.level||'Beginner',D=rl===S.level?S:(ALL[rl]||blank());
+ const r=D.students.map(s=>calc(s,D)).sort((a,b)=>b.grade-a.grade);let rk=0,pv=null;r.forEach((x,i)=>{if(x.grade!==pv){rk=i+1;pv=x.grade}x.rank=rk});
+ const f=n=>n==null?'–':n.toFixed(1),o=document.createElement('div');o.id='shot';
+ o.style.cssText='position:fixed;inset:0;z-index:70;background:var(--bg);color:var(--tx);overflow:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(14px + env(safe-area-inset-bottom,0px))';
+ o.innerHTML=`<style>#shot td,#shot th{padding:6px 3px}</style><div style="max-width:560px;margin:0 auto"><div class="mu" style="text-align:center;margin-bottom:8px">Take a screenshot of this screen · scroll down for more</div>
+ <div class="card"><h2 style="font-size:20px;margin:0 0 4px">📊 ${rl} Level Report</h2><div class="mu">${esc(D.curr)||'–'} · Teacher: ${esc(D.teacher)||'–'} · ${new Date().toLocaleDateString()}</div></div>
+ <div class="card"><h2>🏆 Top 3</h2>${r.length?`<div class="pod">${r.slice(0,3).map((x,i)=>`<div><small>${['🥇','🥈','🥉'][i]} #${x.rank}</small><b>${f(x.grade)}%</b>${esc(x.name)}</div>`).join('')}</div>`:'<span class=mu>No students yet.</span>'}</div>
+ ${awards(r,D,rl)}${certs(r,rl)}
+ <div class="card"><h2>All grades</h2><table style="font-size:12px;white-space:normal"><tr><th>#</th><th>Student</th><th>Att</th><th>Games</th><th>Mem</th><th>Act</th><th>Rec</th><th>Grade</th></tr>${r.map(x=>`<tr><td>${x.rank}</td><td>${esc(x.name)}</td><td>${f(x.att)}</td><td>${f(x.gam)}</td><td>${f(x.mem)}</td><td>${f(x.act)}</td><td>${f(x.rec)}</td><td><b>${f(x.grade)}</b></td></tr>`).join('')}</table></div>
+ <button class="btn" style="width:100%" onclick="document.getElementById('shot').remove()">Close</button></div>`;
+ document.body.appendChild(o);o.scrollTop=0}
+let GLANG=0;try{GLANG=+localStorage.getItem('gt_lang')||0}catch(e){}
+function setLang(v){GLANG=v;try{localStorage.setItem('gt_lang',v)}catch(e){}render()}
+const fi=t=>`<div class="fi">${t}</div>`,fb=t=>`<span class="fb">${t}</span>`;
+const GS=[
+{t:['1. Set up your class','1. I-set up ang klase'],r:[
+ [fi('Choose level… ▾'),['Tap and choose your level (Setup tab)','I-tap at piliin ang iyong level (Setup tab)']],
+ [fi('Teacher’s full name'),['Type your name','I-type ang iyong pangalan']],
+ [fi('e.g. Heroes of Faith'),['Type the curriculum title','I-type ang pamagat ng curriculum']],
+ [fi('5'),['Type how many lessons are in this curriculum','I-type kung ilang aralin ang nasa curriculum']]]},
+{t:['2. Add a student','2. Magdagdag ng estudyante'],r:[
+ [fi('First name *'),['Required: first name','Kailangan: unang pangalan']],
+ [fi('Last name *'),['Required: last name','Kailangan: apelyido']],
+ [fb('Add student'),['Tap to add. A score box opens','I-tap para magdagdag. May lalabas na kahon para sa score']]]},
+{t:['3. Enter the scores in the box','3. Ilagay ang mga score sa kahon'],r:[
+ [fi('Lesson 1 ▾'),['First step only: choose the lesson number','Unang hakbang lang: piliin ang numero ng aralin']],
+ [fi('Attendance score (out of 10)'),['Type the score, then tap Next. Repeat for Games, Memory Verse, Recitation and Activity','I-type ang score, tapos i-tap ang Next. Ulitin para sa Games, Memory Verse, Recitation at Activity']],
+ [fi('Total activity points'),['Last step: total points of the Activity this lesson','Huling hakbang: kabuuang puntos ng Activity sa araling ito']],
+ [fb('Save'),['Tap Save to finish','I-tap ang Save para tapusin']]]},
+{t:['4. Next lesson (next Sunday)','4. Susunod na aralin (susunod na Linggo)'],r:[
+ [fb('Scores'),['Setup tab: tap Scores beside a student and choose the new lesson number','Setup tab: i-tap ang Scores sa tabi ng estudyante at piliin ang bagong numero ng aralin']],
+ [fi('Lesson title'),['Optional: on the Scores tab, type the lesson title','Opsyonal: sa Scores tab, i-type ang pamagat ng aralin']]]},
+{t:['5. See results and share','5. Tingnan ang resulta at ibahagi'],r:[
+ [fi('Viewing level ▾'),['Results tab: choose a level to see Top 3, awards and certificates','Results tab: pumili ng level para makita ang Top 3, awards at certificates']],
+ [fb('📸 View report as image'),['Tap, then take a screenshot to share','I-tap, tapos mag-screenshot para maibahagi']],
+ [fb('📄 Download PDF report'),['Saves a PDF with a summary per level','Magse-save ng PDF na may buod sa bawat level']]]}];
+const GD=[
+['Do not leave First name or Last name empty.','Huwag iwanang blangko ang First name o Last name.'],
+['Do not type a score above the maximum: 10 for Attendance, Games, Memory Verse and Recitation. Activity cannot be higher than its total.','Huwag maglagay ng score na mas mataas sa maximum: 10 para sa Attendance, Games, Memory Verse at Recitation. Ang Activity ay hindi maaaring lampas sa total nito.'],
+['Do not add the same student twice.','Huwag idagdag nang dalawang beses ang parehong estudyante.'],
+['Check the lesson number before typing scores so they do not go to the wrong lesson.','Tingnan muna ang numero ng aralin bago mag-type ng score para hindi mapunta sa maling aralin.'],
+['Do not tap Reset all data unless you want to erase everything.','Huwag i-tap ang Reset all data maliban kung gusto mong burahin ang lahat.'],
+['Do not choose a level that belongs to another teacher. It will be view only.','Huwag pumili ng level na pag-aari ng ibang guro. View only lang ito.'],
+['Do not use a private/incognito tab, do not clear browser data, and do not switch to another browser or phone, or your saved scores will be missing.','Huwag gumamit ng private/incognito tab, huwag i-clear ang browser data, at huwag lumipat ng ibang browser o phone, kung hindi ay mawawala ang mga naka-save na score.']];
+function guideHTML(){const k=GLANG;
+ return `<div class="card"><h2>${k?'Paano gamitin':'How to use'}</h2><div class="row seg"><button class="${k?'':'on'}" onclick="setLang(0)">English</button><button class="${k?'on':''}" onclick="setLang(1)">Filipino</button></div></div>`
+ +GS.map(s=>`<div class="card"><h2>${s.t[k]}</h2>${s.r.map(([e,l])=>`<div class="mk"><div>${e}</div><div class="ar">⬅ ${l[k]}</div></div>`).join('')}</div>`).join('')
+ +`<div class="card" style="border-color:var(--bad)"><h2>🚫 ${k?'Mga HINDI dapat gawin':'Things NOT to do'}</h2>${GD.map(d=>`<div class="stu" style="align-items:flex-start"><span>❌ ${d[k]}</span></div>`).join('')}</div>`}
+function mkBackup(){const t='GTBACKUP1:'+btoa(unescape(encodeURIComponent(JSON.stringify(S)))),a=document.getElementById('bk');
+ a.value=t;a.style.display='block';a.focus();a.select();try{navigator.clipboard.writeText(t).catch(()=>{})}catch(e){}
+ document.getElementById('bmsg').textContent='Backup ready. If it did not copy, press and hold the box, choose Select All, then Copy. Paste it into Notes or send it to yourself in Messenger.'}
+function doRestore(btn){const raw=document.getElementById('rs').value.trim(),m=document.getElementById('bmsg');
+ if(!raw.startsWith('GTBACKUP1:')){m.textContent='That does not look like a backup. Paste the whole text that starts with GTBACKUP1:';return}
+ let p;try{p=JSON.parse(decodeURIComponent(escape(atob(raw.slice(10).replace(/\s/g,'')))));if(!Array.isArray(p.students)||!p.lessons)throw 0}catch(e){m.textContent='The backup text is incomplete or damaged. Please copy it again.';return}
+ twoStep(btn,()=>{if(S.level)ALL[S.level]=S;S=Object.assign(blank(),p);cur=1;if(S.level)ALL[S.level]=S;save();render();toast('Backup restored')},'Tap again to replace current data')}
+function nav(){document.getElementById('nav').innerHTML=[['setup','Setup'],['scores','Scores'],['results','Results'],['guide','Guide']].map(([k,t])=>`<button class="${tab===k?'on':''}" onclick="go('${k}')">${t}</button>`).join('')}
+function render(){nav();const v=document.getElementById('v');
+ if(tab==='setup')v.innerHTML=`<div class="card"><h2>Class details</h2>
+ <label>Level</label><select data-keep onchange="setLevel(this.value)"><option value="">Choose level…</option>${['Beginner','Primary','Intermediate'].map(x=>`<option value="${x}" ${S.level===x?'selected':''}>${x}${OWN[x]&&OWN[x]!==uid?' (other teacher)':''}</option>`).join('')}</select>
+ <label>Teacher name</label><input value="${esc(S.teacher)}" oninput="set('teacher',this.value)" placeholder="Teacher’s full name">
+ <label>Curriculum title</label><input value="${esc(S.curr)}" oninput="set('curr',this.value)" placeholder="e.g. Heroes of Faith">
+ <label>Number of lessons in this curriculum</label><input type="number" min="1" max="60" value="${S.n}" oninput="setN(this.value)"></div>
+ <div class="card"><h2>Students (${S.students.length})</h2><div class="row"><div><label style="margin-top:0">First name *</label><input id="fn" required placeholder="First name" onkeydown="if(event.key==='Enter')addStu()"></div><div><label style="margin-top:0">Last name *</label><input id="ln" required placeholder="Last name" onkeydown="if(event.key==='Enter')addStu()"></div></div><div id="err" class="mu" style="color:var(--bad);margin:6px 0"></div><button class="btn" style="width:100%" onclick="addStu()">Add student</button>
+ ${S.students.map(s=>`<div class="stu"><span>${esc(s.name)}</span><div style="display:flex;gap:6px"><button class="btn" onclick="openWiz(${s.id})">Scores</button><button class="btn ghost" onclick="delStu(${s.id},this)">Remove</button></div></div>`).join('')}</div>
+ <div class="card"><h2>Weights</h2><div class="mu">${C.map(c=>c[1]+' '+c[2]*100+'%').join(' · ')}</div></div>
+ <div class="card"><h2>Backup / Restore</h2><div class="mu">Save a copy of your data in case it gets lost.</div><button class="btn" style="width:100%;margin-top:8px" onclick="mkBackup()">Create backup</button><textarea id="bk" readonly style="display:none;margin-top:8px"></textarea><label>Paste a backup here to restore</label><textarea id="rs" placeholder="GTBACKUP1:…"></textarea><button class="btn ghost" style="width:100%;margin-top:8px" onclick="doRestore(this)">Restore backup</button><div id="bmsg" class="mu" style="margin-top:6px"></div></div>
+ <button class="btn ghost" style="width:100%" onclick="resetAll(this)">Reset all data</button>`;
+ else if(tab==='scores'){const l=L(cur);
+  v.innerHTML=`<div class="card"><label style="margin-top:0">Lesson number (of ${S.n})</label><select onchange="cur=+this.value;render()">${Array.from({length:S.n},(_,i)=>`<option value="${i+1}" ${cur===i+1?'selected':''}>Lesson ${i+1}</option>`).join('')}</select>
+  <label>Curriculum</label><div>${esc(S.curr)||'<span class=mu>Set it in Setup</span>'}</div>
+  <label>Lesson title</label><input value="${esc(l.title)}" oninput="setLesson('title',this.value)" placeholder="Lesson title">
+  <label>Total points for Activity this lesson</label><input type="number" min="1" value="${l.act}" onchange="setLesson('act',this.value);render()">
+  <div class="mu" style="margin-top:6px">Attendance, Games, Memory Verse and Recitation are each out of 10.</div></div>
+  ${S.students.length?S.students.map(s=>{const x=l.sc[s.id]||{};return`<div class="card"><b>${esc(s.name)}</b><div class="g5">${C.map(([k,n])=>`<div><label>${n.split(' ')[0]} /${k==='act'?l.act:10}</label><input type="number" inputmode="decimal" min="0" value="${x[k]??''}" oninput="setSc(${s.id},'${k}',this)"></div>`).join('')}</div></div>`}).join(''):'<div class="card mu">Add students in Setup first.</div>'}`}
+ else{const rl=RL||S.level||'Beginner',D=rl===S.level?S:(ALL[rl]||blank()),r=D.students.map(s=>calc(s,D)).sort((a,b)=>b.grade-a.grade);let rk=0,pv=null;r.forEach((x,i)=>{if(x.grade!==pv){rk=i+1;pv=x.grade}x.rank=rk});
+  const f=n=>n==null?'–':n.toFixed(1);
+  v.innerHTML=`<button class="btn" style="width:100%;margin-bottom:12px" onclick="dlPdf()">📄 Download PDF report (all levels)</button><button class="btn" style="width:100%;margin-bottom:12px" onclick="shotView()">📸 View report as image (for screenshot)</button><div id="pmsg" class="mu" style="color:var(--bad);margin:-6px 0 8px"></div><div class="card"><label style="margin-top:0">Viewing level</label><select onchange="RL=this.value;render()">${LV.map(x=>`<option ${x===rl?'selected':''}>${x}</option>`).join('')}</select></div><div class="card"><h2>🏆 Top 3 · ${rl}</h2>${r.length?`<div class="pod">${r.slice(0,3).map((x,i)=>`<div><small>${['🥇','🥈','🥉'][i]} #${x.rank}</small><b>${f(x.grade)}%</b>${esc(x.name)}</div>`).join('')}</div>`:'<span class=mu>No students yet.</span>'}
+  <div class="mu" style="margin-top:8px">${esc(D.curr)} ${D.teacher?'· Teacher '+esc(D.teacher):''}</div></div>${awards(r,D,rl)}${certs(r,rl)}
+  <div class="card"><h2>All grades</h2><div class="wrap"><table><tr><th>#</th><th>Student</th>${C.map(c=>`<th>${c[1].replace('Memory Verse','Mem.')}</th>`).join('')}<th>Grade</th></tr>
+  ${r.map(x=>`<tr><td>${x.rank}</td><td>${esc(x.name)}</td>${C.map(c=>`<td>${f(x[c[0]])}</td>`).join('')}<td><b>${f(x.grade)}</b></td></tr>`).join('')}</table></div>
+  <div class="mu" style="margin-top:8px">Category scores are % across all lessons with entered scores; Grade applies the weights.</div></div>`}}
+const R0=render;render=function(){if(tab==='guide'){nav();document.getElementById('v').innerHTML=guideHTML();return}R0();if(ro()&&tab!=='results'){const v=document.getElementById('v');v.querySelectorAll('input,button,select:not([data-keep])').forEach(e=>e.disabled=true);v.insertAdjacentHTML('afterbegin','<div class="card" style="border-color:var(--bad)">👀 View only. Each level has one teacher, and this level isn’t yours.</div>')}};
+render();
+(async()=>{try{if(!window.claude)return;const[d,u]=await Promise.all([claude.use('db'),claude.use('user')]);if(!d||!u)return;uid=await u.id();if(!uid)return;DB=d;let first=true;
+ DB.collection('levels').onSnapshot(snap=>{OWN={};
+  snap.docs.forEach(x=>{const v=x.data()||{};OWN[x.id]=v.owner;try{const r=JSON.parse(v.d);if(x.id===S.level&&v.owner===uid)return;ALL[x.id]=r;if(x.id===S.level||(!S.level&&v.owner===uid)){S=r;S.level=x.id}}catch(e){}});
+  LV.forEach(l=>{if(!OWN[l]&&l!==S.level)delete ALL[l]});
+  if(first){first=false;if(S.level&&!ro()&&OWN[S.level]!==uid)save()}
+  stat('Synced ✓ shared across phones');
+  if(!['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)&&!W)render()},
+  ()=>stat('Sync unavailable – saving on this phone only'))}catch(e){}})();
+</script></body></html>
