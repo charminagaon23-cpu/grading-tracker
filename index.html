@@ -34,10 +34,33 @@ th,td{padding:8px;text-align:right;border-bottom:1px solid var(--bd)}th:nth-chil
 .mk{display:flex;align-items:center;gap:8px;margin:10px 0}
 textarea{width:100%;height:80px;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:12px monospace}.mk>div:first-child{flex:0 0 44%}.ar{color:var(--bad);font-weight:700;font-size:13px;line-height:1.3}
 </style></head><body><main>
-<h1>📊 Grading Tracker</h1><div id="sync" class="mu" style="margin:-8px 0 8px"></div>
+<h1>📊 Grading Tracker</h1><div id="sync" class="mu" style="margin:-8px 0 8px"></div><div id="authbar" style="margin:0 0 10px"></div>
 <nav id="nav"></nav><div id="v"></div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+const cfg={apiKey:"AIzaSyD2Hn8ygU44yJ7x2JGhFSFQwvHOpo8J9cw",authDomain:"grading-tracker-ef3a0.firebaseapp.com",projectId:"grading-tracker-ef3a0",storageBucket:"grading-tracker-ef3a0.firebasestorage.app",messagingSenderId:"521804470727",appId:"1:521804470727:web:198a3187113379ee69a1e2"};
+let U=null;
+function bar(){const el=document.getElementById('authbar');if(!el)return;
+ if(U){el.innerHTML='<span class="mu">Signed in: '+String(U.email||U.displayName||'').replace(/[<>&"]/g,'')+'</span> <button class="btn ghost" style="padding:6px 10px;margin-left:6px" onclick="gSignOut()">Sign out</button>'}
+ else el.innerHTML='<button class="btn" style="width:100%" onclick="gSignIn()">Sign in with Google to sync</button><div id="aerr" class="mu" style="color:var(--bad)"></div>'}
+try{firebase.initializeApp(cfg)}catch(e){return}
+const auth=firebase.auth(),fs=firebase.firestore();let first=true,res;const ready=new Promise(r=>res=r);
+auth.onAuthStateChanged(u=>{U=u;bar();if(first){first=false;res(u)}else location.reload()});
+window.gSignIn=()=>auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{const a=document.getElementById('aerr');if(a)a.textContent='Sign-in failed: '+(e.code||e.message)});
+window.gSignOut=()=>auth.signOut();
+window.claude={use:async n=>{
+ if(n==='user'){await ready;return{id:async()=>U?U.uid:null}}
+ if(n==='db')return{collection:c=>({doc:id=>({set:o=>fs.collection(c).doc(id).set(o),delete:()=>fs.collection(c).doc(id).delete()}),onSnapshot:(f,e)=>fs.collection(c).onSnapshot(f,e)})};
+ if(n==='downloads')return{save:async({filename,data})=>{const a=document.createElement('a');a.href=URL.createObjectURL(data);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),1500)}};
+ return null}};
+document.addEventListener('DOMContentLoaded',bar);setTimeout(bar,300);
+})();
+</script>
 <script>
 const KEY='gradetracker_v1',C=[['att','Attendance',.25],['gam','Games',.15],['mem','Memory Verse',.15],['act','Activity',.25],['rec','Recitation',.20]];
 const blank=()=>({level:'',teacher:'',curr:'',n:5,students:[],lessons:{},nid:1}),LV=['Beginner','Primary','Intermediate'];let S=blank(),ALL={},RL='',tab='setup',cur=1,DB=null,uid=null,OWN={},timer=null;
