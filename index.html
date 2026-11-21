@@ -49,6 +49,7 @@ h1{display:inline-block;background:rgba(255,255,255,.9);padding:8px 14px;border-
 <nav id="nav"></nav><div id="v"></div>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -63,7 +64,13 @@ try{if(localStorage.getItem('gt_in')){const c=document.getElementById('cover');i
 try{firebase.initializeApp(cfg)}catch(e){return}
 const auth=firebase.auth(),fs=firebase.firestore();let first=true,res;const ready=new Promise(r=>res=r);
 auth.onAuthStateChanged(u=>{U=u;ok=true;try{u?localStorage.setItem('gt_in','1'):localStorage.removeItem('gt_in')}catch(e){}bar();if(first){first=false;res(u)}else location.reload()});
-window.gSignIn=()=>{const c=document.getElementById('cerr');if(c)c.textContent='Opening Google sign-in…';return auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{const m='Sign-in failed: '+(e.code||e.message);['aerr','cerr'].forEach(i=>{const a=document.getElementById(i);if(a)a.textContent=m})})};
+const CID='521804470727-ff8ueikc87kqm2idnckrirtmoh6110oo.apps.googleusercontent.com';
+window.gSignIn=()=>{const show=m=>{['aerr','cerr'].forEach(i=>{const x=document.getElementById(i);if(x)x.textContent=m})};
+ if(!window.google||!google.accounts||!google.accounts.oauth2){show('Google sign-in is still loading. Wait a moment and tap again.');return}
+ show('Opening Google sign-in…');
+ google.accounts.oauth2.initTokenClient({client_id:CID,scope:'openid email profile',prompt:'select_account',
+  callback:r=>{if(r.error){show('Sign-in failed: '+r.error);return}auth.signInWithCredential(firebase.auth.GoogleAuthProvider.credential(null,r.access_token)).catch(e=>show('Sign-in failed: '+(e.code||e.message)))},
+  error_callback:e=>show('Sign-in failed: '+(e.type||e.message||'window closed or blocked'))}).requestAccessToken()};
 window.gSignOut=()=>auth.signOut();
 window.claude={use:async n=>{
  if(n==='user'){await ready;return{id:async()=>U?U.uid:null}}
